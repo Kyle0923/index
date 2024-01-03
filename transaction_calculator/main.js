@@ -33,8 +33,11 @@ function addRow() {
 }
 
 function validate_input(inputList) {
-    const reg_user = /^\w+$/;
-    const reg_user_paid = /^\w+\(\d+\)$/; // test for A(100)
+    if (inputList.length === 1) {
+        return [false, 'need to have at least 2 pariticipants in a transaction'];
+    }
+    const reg_user_paid = /\(\d+\)/;
+    const reg_invalid_char = /[\(\)]/;
     let numOfPaid = 0;
     for (const value of inputList) {
         if (reg_user_paid.test(value))
@@ -42,7 +45,7 @@ function validate_input(inputList) {
             numOfPaid++;
             continue;
         }
-        if (!reg_user.test(value))
+        if (reg_invalid_char.test(value))
         {
             return [false, `Incorrect format: ${value}`];
         }
@@ -50,7 +53,7 @@ function validate_input(inputList) {
 
     if (numOfPaid == 0)
     {
-        return [false, 'At least one person need to pay for this transcation']
+        return [false, 'At least one person need to pay for this transcation'];
     }
     return [true, ""];
 }
@@ -129,7 +132,7 @@ function calculate() {
         let record = row.values;
         processTransaction(record, results);
     }
-    console.log(results);
+    // console.log(results);
     printResult(results);
 }
 
@@ -192,7 +195,7 @@ function printResult(results) {
             to = temp;
             amount = -amount;
         }
-        const msg = `${from} -> ${to}: ${amount.toFixed(2)}`;
+        const msg = `${from} => ${to}: ${amount.toFixed(2)}`;
         msgs.push(msg);
     }
 
@@ -202,5 +205,14 @@ function printResult(results) {
         rowElement.appendChild(rowText);
         resultDiv.appendChild(rowElement);
     }
+}
+
+function clearRecord() {
+    const rowHistoryContainer = document.getElementById('rowHistoryContainer');
+    rowHistoryContainer.innerHTML = "";
+    const resultDiv = document.getElementById('rowsResultContainer');
+    resultDiv.innerHTML = "";
+    rowNumber = 1;
+    rowsData = [];
 }
 
