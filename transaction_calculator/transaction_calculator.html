@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Calculator</title>
+    <script src="main.js" defer></script>
+</head>
+<body>
+
+    <h1>Transaction Calculator</h1>
+
+    <p>Enter a transaction.<br>For example, A paid $100, C paid $50, and this transaction is split among A, B, C and D<br>Enter <b>A(100),B,C(50),D</b> (order doesn't matter)</p>
+    <div>
+        <label for="transactionInput">Enter transaction:</label>
+        <input type="text" style="width: 600px;" id="transactionInput" placeholder="e.g., A(100),B,C(50),D">
+    </div>
+    <p></p>
+    <button onclick="addRow()">Add transaction</button>
+    <button onclick="calculate()">Calculate</button>
+
+    <div id="historyContainer">
+        <h2>Transaction History:</h2>
+        <div id="rowHistoryContainer"></div>
+    </div>
+
+    <div id="resultContainer">
+        <h2>Result:</h2>
+        <p id="result"></p>
+        <div id="rowsResultContainer"></div>
+    </div>
+
+    <script>
+        // Add an event listener for the "Enter" key
+        document.getElementById('transactionInput').addEventListener('keyup', function (event) {
+            if (event.key === 'Enter') {
+                addRow();
+            }
+        });
+    </script>
+
+</body>
+</html>
+
