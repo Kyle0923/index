@@ -1,78 +1,113 @@
-let rowNumber = 1; // Counter for the row number
-let rowsData = []; // Array to store rows data
+"use strict";
+
+let rowId = 1; // Counter for the row number
+let displayId = 1; // current display id
+let records = new Map(); // Array to store rows data
 
 function addRow() {
     const transactionInput = document.getElementById('transactionInput');
     const rowHistoryContainer = document.getElementById('rowHistoryContainer');
 
     let inputStr = transactionInput.value.trim();
+    let title = "";
+    if (inputStr.includes(':')) {
+        title = inputStr.split(':')[0].trim();
+        inputStr = inputStr.split(':')[1].trim();
+    }
     if (inputStr === '') {
         alert('Please enter transaction.');
         return;
     }
 
-    let inputList = inputStr.split(',').map(str => str.trim())
-
-    let [is_valid, msg] = validate_input(inputList);
+    let is_valid;
+    [is_valid, inputStr] = validate_input(inputStr);
     if (!is_valid) {
-        alert(msg);
         return;
     }
 
-    inputStr = inputList.join(', ')
-    // Store row data in the array
-    rowsData.push({ row: rowNumber, transaction: inputStr });
+    records.set(rowId, { transaction: inputStr, title: title });
 
-    // Display row in history with remove button
-    const rowElement = createRowElement(rowNumber, inputStr);
+    const rowElement = createRowElement(rowId, inputStr, title);
     rowHistoryContainer.appendChild(rowElement);
 
-    rowNumber++;
+    rowId++;
     transactionInput.value = ''; // Clear the input for the next row
 }
 
-function validate_input(inputList) {
+function validate_input(inputStr) {
+    let inputList = inputStr.split(',');
+
+    let [is_valid, msg] = validate_input_impl(inputList);
+    if (!is_valid) {
+        alert(msg);
+        return [is_valid, undefined];
+    }
+
+    inputStr = inputList.join(', ');
+    return [is_valid, inputStr];
+}
+
+
+function validate_input_impl(inputList) {
     if (inputList.length === 1) {
         return [false, 'need to have at least 2 pariticipants in a transaction'];
     }
-    const reg_user_paid = /\([\d\*.+-]+\)/;
-    const reg_invalid_char = /[\(\)]/;
     let numOfPaid = 0;
+    let seen = new Set();
     for (let idx = 0; idx < inputList.length; idx++) {
-        value = inputList[idx];
-        if (reg_user_paid.test(value))
-        {
-            if (value.match(/[\*.+-]/)) {
-                inputList[idx] = eval_expr(value);
-            }
-            numOfPaid++;
-            continue;
+        let record = inputList[idx];
+        const [is_valid, pariticipant, expr] = parse_participant(record);
+        if (!is_valid) {
+            return [false, `Incorrect format: ${record}`];
         }
-        if (reg_invalid_char.test(value))
+        if (seen.has(pariticipant)) {
+            return [false, `repeated participant: ${pariticipant}`];
+        }
+        seen.add(pariticipant);
+        if (expr !== undefined)
         {
-            return [false, `Incorrect format: ${value}`];
+            inputList[idx] = `${pariticipant}(${eval_expr(expr)})`;
+            numOfPaid++;
         }
     }
 
     if (numOfPaid == 0)
     {
-        return [false, 'At least one person need to pay for this transcation'];
+        return [false, 'At least one participant need to pay for this transcation'];
     }
     return [true, ""];
 }
 
-function eval_expr(str) {
-    const reg_expr = /\(([\d+-\\*]+)\)/;
-    const matched = reg_expr.exec(str)[1];
-    const numerical = eval(matched).toFixed(2);
-    return str.replace(matched, numerical);
+function parse_participant(record) {
+    record = record.trim();
+    const reg_user_paid = /\(([\d+-\\*]+)\)/;
+    const reg_invalid_char = /[\(\)]/;
+    if (!reg_invalid_char.test(record)) {
+        return [true, record, undefined];
+    }
+    const matched = reg_user_paid.exec(record);
+    if (!matched) {
+        return [false, undefined, undefined];
+    }
+    const pariticipant = record.replace(matched[0], "");
+    return [true, pariticipant, matched[1]];
 }
 
-function createRowElement(row, transaction) {
+function eval_expr(str) {
+    const numerical = eval(str);
+    if (Number.isInteger(numerical)) {
+        return numerical;
+    } else {
+        return numerical.toFixed(2);
+    }
+}
+
+function createRowElement(id, transaction, title) {
     const rowElement = document.createElement('div');
     rowElement.classList.add('row-item');
+    rowElement.setAttribute("id", `row-item-${id}`);
 
-    const rowText = document.createTextNode(`Transaction ${row}: ${transaction}`);
+    const rowText = document.createTextNode(title ? `${title}: ${transaction}` : `Transaction ${displayId++}: ${transaction}`);
     rowElement.appendChild(rowText);
 
     const spacing1 = document.createTextNode('  '); // Add 2-space padding
@@ -80,7 +115,7 @@ function createRowElement(row, transaction) {
 
     const editButton = document.createElement('button');
     editButton.textContent = 'Edit Row';
-    editButton.addEventListener('click', () => editRow(row, transaction));
+    editButton.addEventListener('click', () => editRow(id));
     rowElement.appendChild(editButton);
 
     const spacing2 = document.createTextNode('  '); // Add 2-space padding
@@ -88,7 +123,7 @@ function createRowElement(row, transaction) {
 
     const copyButton = document.createElement('button');
     copyButton.textContent = 'Copy';
-    copyButton.addEventListener('click', () => copyRow(transaction));
+    copyButton.addEventListener('click', () => copyRow(id));
     rowElement.appendChild(copyButton);
 
     const spacing3 = document.createTextNode('  '); // Add 2-space padding
@@ -96,7 +131,7 @@ function createRowElement(row, transaction) {
 
     const removeButton = document.createElement('button');
     removeButton.textContent = 'Remove Row';
-    removeButton.addEventListener('click', () => removeRow(rowElement, row));
+    removeButton.addEventListener('click', () => removeRow(rowElement, id));
     rowElement.appendChild(removeButton);
 
     rowElement.style.paddingBottom = '2px'
@@ -104,83 +139,74 @@ function createRowElement(row, transaction) {
     return rowElement;
 }
 
-function editRow(row, transaction) {
-    const editedTransaction = prompt(`Edit transaction (current: ${transaction}):`, transaction);
+function editRow(id) {
+    let record = records.get(id);
+    const transaction = record.transaction;
+    let editedTransaction = prompt(`Edit ${record.title? record.title : "transaction"}, current: ${transaction}:`, transaction);
 
-    if (editedTransaction !== null) {
-        // Update the transaction in the array
-        const index = rowsData.findIndex(rowData => rowData.row === row);
-        if (index !== -1) {
-            rowsData[index].transaction = editedTransaction;
-        }
-
-        // Update the displayed transaction in the DOM, including the row number
-        const allRowElements = document.querySelectorAll('.row-item');
-        allRowElements.forEach((element, index) => {
-            const currentRow = index + 1;
-            const rowText = element.firstChild;
-
-            if (currentRow === row) {
-                rowText.textContent = `Transaction ${currentRow}: ${editedTransaction}`;
-            }
-        });
+    if (editedTransaction === null) {
+        return;
     }
+
+    let is_valid;
+    [is_valid, editedTransaction] = validate_input(editedTransaction);
+    if (!is_valid) {
+        return;
+    }
+
+    // Update the transaction in the Map
+    record.transaction = editedTransaction;
+
+    // Update the displayed transaction in the DOM, including the row number
+    const element = document.getElementById(`row-item-${id}`);
+    const rowText = element.firstChild;
+    rowText.textContent = rowText.textContent.replace(transaction, editedTransaction);
 }
 
-function copyRow(transaction) {
-    if (rowsData.length > 0) {
-        const transactionInput = document.getElementById('transactionInput');
-        transactionInput.value = transaction;
-    }
+function copyRow(id) {
+    const transactionInput = document.getElementById('transactionInput');
+    transactionInput.value = records.get(id).transaction;;
 }
 
-function removeRow(rowElement, row) {
-    // Remove the row from the array
-    rowsData = rowsData.filter(rowData => rowData.row !== row);
+function removeRow(rowElement, id) {
+
+    records.delete(id);
 
     // Remove the row element from the DOM
     rowElement.remove();
 
     // Correct the row numbers for the remaining rows
     const allRowElements = document.querySelectorAll('.row-item');
-    allRowElements.forEach((element, index) => {
-        const currentRow = index + 1;
+    let displayId = 1;
+    allRowElements.forEach((element) => {
         const rowText = element.firstChild;
-        rowText.textContent = `Transaction ${currentRow}: ${rowText.textContent.slice(rowText.textContent.indexOf(':') + 2)}`;
+        if (rowText.textContent.startsWith("Transaction ")) {
+            rowText.textContent = `Transaction ${displayId++}: ${rowText.textContent.slice(rowText.textContent.indexOf(':') + 2)}`;
+        }
     });
 
-    // Update the global rowNumber variable
-    rowNumber = allRowElements.length + 1;
 }
 
 function calculate() {
     let results = new Map();
-    for (const row of rowsData) {
-        let record = row.transaction;
-        processTransaction(record, results);
+    for (const [, record] of records) {
+        processTransaction(record.transaction, results);
     }
     printResult(results);
 }
 
 function processTransaction(record, results) {
-    const regNum = /\([\d.]+\)/;
-    let participants = record.split(',');
-    let participants_copy = [];
+    let participants = [];
     let payers = [];
-    for (let participant of participants) {
-        participant = participant.trim();
-        const matched = participant.match(regNum);
-        if (!matched) {
-            participants_copy.push(participant);
+    for (let participant of record.split(',')) {
+        const [, name, amount] = parse_participant(participant);
+        participants.push(name);
+        if (amount === undefined) {
             continue;
         }
-        const amount_paid = Number(matched[0].replace('(', '').replace(')', ''));
-        participant = participant.replace(regNum, "").trim();
-        participants_copy.push(participant);
-        payers.push({name: participant, amount: amount_paid});
+        payers.push({name: name, amount: Number(amount)});
     }
 
-    participants = participants_copy;
     for (const payer of payers) {
         for (const participant of participants) {
             if (participant === payer.name) {
@@ -240,7 +266,8 @@ function clearRecord() {
     rowHistoryContainer.innerHTML = "";
     const resultDiv = document.getElementById('rowsResultContainer');
     resultDiv.innerHTML = "";
-    rowNumber = 1;
-    rowsData = [];
+    rowId = 1;
+    displayId = 1;
+    records.clear();
 }
 
