@@ -13,7 +13,6 @@ function addRow() {
 
     let inputList = inputStr.split(',').map(str => str.trim())
 
-    // Validate input: Check if all entered values are numbers
     let [is_valid, msg] = validate_input(inputList);
     if (!is_valid) {
         alert(msg);
@@ -22,7 +21,7 @@ function addRow() {
 
     inputStr = inputList.join(', ')
     // Store row data in the array
-    rowsData.push({ row: rowNumber, values: inputStr });
+    rowsData.push({ row: rowNumber, transaction: inputStr });
 
     // Display row in history with remove button
     const rowElement = createRowElement(rowNumber, inputStr);
@@ -36,12 +35,16 @@ function validate_input(inputList) {
     if (inputList.length === 1) {
         return [false, 'need to have at least 2 pariticipants in a transaction'];
     }
-    const reg_user_paid = /\(\d+\)/;
+    const reg_user_paid = /\([\d\*.+-]+\)/;
     const reg_invalid_char = /[\(\)]/;
     let numOfPaid = 0;
-    for (const value of inputList) {
+    for (let idx = 0; idx < inputList.length; idx++) {
+        value = inputList[idx];
         if (reg_user_paid.test(value))
         {
+            if (value.match(/[\*.+-]/)) {
+                inputList[idx] = eval_expr(value);
+            }
             numOfPaid++;
             continue;
         }
@@ -58,11 +61,18 @@ function validate_input(inputList) {
     return [true, ""];
 }
 
-function createRowElement(row, values) {
+function eval_expr(str) {
+    const reg_expr = /\(([\d+-\\*]+)\)/;
+    const matched = reg_expr.exec(str)[1];
+    const numerical = eval(matched).toFixed(2);
+    return str.replace(matched, numerical);
+}
+
+function createRowElement(row, transaction) {
     const rowElement = document.createElement('div');
     rowElement.classList.add('row-item');
 
-    const rowText = document.createTextNode(`Transaction ${row}: ${values}`);
+    const rowText = document.createTextNode(`Transaction ${row}: ${transaction}`);
     rowElement.appendChild(rowText);
 
     const spacing1 = document.createTextNode('  '); // Add 2-space padding
@@ -70,40 +80,57 @@ function createRowElement(row, values) {
 
     const editButton = document.createElement('button');
     editButton.textContent = 'Edit Row';
-    editButton.addEventListener('click', () => editRow(row, values));
+    editButton.addEventListener('click', () => editRow(row, transaction));
     rowElement.appendChild(editButton);
 
     const spacing2 = document.createTextNode('  '); // Add 2-space padding
     rowElement.appendChild(spacing2);
+
+    const copyButton = document.createElement('button');
+    copyButton.textContent = 'Copy';
+    copyButton.addEventListener('click', () => copyRow(transaction));
+    rowElement.appendChild(copyButton);
+
+    const spacing3 = document.createTextNode('  '); // Add 2-space padding
+    rowElement.appendChild(spacing3);
 
     const removeButton = document.createElement('button');
     removeButton.textContent = 'Remove Row';
     removeButton.addEventListener('click', () => removeRow(rowElement, row));
     rowElement.appendChild(removeButton);
 
+    rowElement.style.paddingBottom = '2px'
+
     return rowElement;
 }
 
-function editRow(row, values) {
-    const editedValues = prompt(`Edit values for Transaction (current values: ${values}):`, values);
+function editRow(row, transaction) {
+    const editedTransaction = prompt(`Edit transaction (current: ${transaction}):`, transaction);
 
-    if (editedValues !== null) {
-        // Update the values in the array
+    if (editedTransaction !== null) {
+        // Update the transaction in the array
         const index = rowsData.findIndex(rowData => rowData.row === row);
         if (index !== -1) {
-            rowsData[index].values = editedValues;
+            rowsData[index].transaction = editedTransaction;
         }
 
-        // Update the displayed values in the DOM, including the row number
+        // Update the displayed transaction in the DOM, including the row number
         const allRowElements = document.querySelectorAll('.row-item');
         allRowElements.forEach((element, index) => {
             const currentRow = index + 1;
             const rowText = element.firstChild;
 
             if (currentRow === row) {
-                rowText.textContent = `Transaction ${currentRow}: ${editedValues}`;
+                rowText.textContent = `Transaction ${currentRow}: ${editedTransaction}`;
             }
         });
+    }
+}
+
+function copyRow(transaction) {
+    if (rowsData.length > 0) {
+        const transactionInput = document.getElementById('transactionInput');
+        transactionInput.value = transaction;
     }
 }
 
@@ -129,15 +156,14 @@ function removeRow(rowElement, row) {
 function calculate() {
     let results = new Map();
     for (const row of rowsData) {
-        let record = row.values;
+        let record = row.transaction;
         processTransaction(record, results);
     }
-    // console.log(results);
     printResult(results);
 }
 
 function processTransaction(record, results) {
-    const regNum = /\(\d+\)/;
+    const regNum = /\([\d.]+\)/;
     let participants = record.split(',');
     let participants_copy = [];
     let payers = [];
@@ -208,6 +234,8 @@ function printResult(results) {
 }
 
 function clearRecord() {
+    const transactionInput = document.getElementById('transactionInput');
+    transactionInput.value = "";
     const rowHistoryContainer = document.getElementById('rowHistoryContainer');
     rowHistoryContainer.innerHTML = "";
     const resultDiv = document.getElementById('rowsResultContainer');
