@@ -10,6 +10,7 @@ function addRow() {
 
     let inputStr = transactionInput.value.trim();
     let title = "";
+    console.log(`input ${rowId}, "${inputStr}"`);
     if (inputStr.includes(':')) {
         title = inputStr.split(':')[0].trim();
         inputStr = inputStr.split(':')[1].trim();
@@ -35,7 +36,7 @@ function addRow() {
 }
 
 function validate_input(inputStr) {
-    let inputList = inputStr.split(',');
+    let inputList = inputStr.split(',').map(str => str.trim()).filter(Boolean);
 
     let [is_valid, msg] = validate_input_impl(inputList);
     if (!is_valid) {
@@ -143,7 +144,7 @@ function editRow(id) {
     let record = records.get(id);
     const transaction = record.transaction;
     let editedTransaction = prompt(`Edit ${record.title? record.title : "transaction"}, current: ${transaction}:`, transaction);
-
+    console.log(`edit ${id}, old: "${transaction}", new: "${editedTransaction}"`);
     if (editedTransaction === null) {
         return;
     }
@@ -169,7 +170,7 @@ function copyRow(id) {
 }
 
 function removeRow(rowElement, id) {
-
+    console.log(`delete ${id}, value: "${records.get(id).transaction}"`);
     records.delete(id);
 
     // Remove the row element from the DOM
@@ -188,6 +189,7 @@ function removeRow(rowElement, id) {
 }
 
 function calculate() {
+    console.log("calculate()\n", records);
     let results = new Map();
     for (const [, record] of records) {
         processTransaction(record.transaction, results);
