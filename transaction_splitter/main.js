@@ -1,8 +1,6 @@
 "use strict";
 
-let rowId = 1; // Counter for the row number
-let displayId = 1; // current display id
-let records = new Map(); // Array to store rows data
+let records = []; // Array to store rows data
 
 function addRow() {
     const transactionInput = document.getElementById('transactionInput');
@@ -10,7 +8,7 @@ function addRow() {
 
     let inputStr = transactionInput.value.trim();
     let title = "";
-    console.log(`input ${rowId}, "${inputStr}"`);
+    console.log(`input idx:${records.length}, "${inputStr}"`);
     if (inputStr.includes(':')) {
         title = inputStr.split(':')[0].trim();
         inputStr = inputStr.split(':')[1].trim();
@@ -26,12 +24,11 @@ function addRow() {
         return;
     }
 
-    records.set(rowId, { transaction: inputStr, title: title });
+    records.push({ transaction: inputStr, title: title, enable: true });
 
-    const rowElement = createRowElement(rowId, inputStr, title);
+    const rowElement = createRowElement(records.length - 1, inputStr, title);
     rowHistoryContainer.appendChild(rowElement);
 
-    rowId++;
     transactionInput.value = ''; // Clear the input for the next row
 }
 
@@ -116,14 +113,16 @@ function createRowElement(id, transaction, title) {
     rowElement.classList.add('row-item');
     rowElement.setAttribute("id", `row-item-${id}`);
 
-    const rowText = document.createTextNode(title ? `${title}: ${transaction}` : `Transaction ${displayId++}: ${transaction}`);
+    const rowText = document.createElement('span');
+    rowText.textContent = title ? `${title}: ${transaction}` : `Transaction ${id+1}: ${transaction}`;
+    rowText.setAttribute("id", `row-text-${id}`);
     rowElement.appendChild(rowText);
 
     const spacing1 = document.createTextNode('  '); // Add 2-space padding
     rowElement.appendChild(spacing1);
 
     const editButton = document.createElement('button');
-    editButton.textContent = 'Edit Row';
+    editButton.textContent = 'Edit';
     editButton.addEventListener('click', () => editRow(id));
     rowElement.appendChild(editButton);
 
@@ -139,8 +138,9 @@ function createRowElement(id, transaction, title) {
     rowElement.appendChild(spacing3);
 
     const removeButton = document.createElement('button');
-    removeButton.textContent = 'Remove Row';
-    removeButton.addEventListener('click', () => removeRow(rowElement, id));
+    removeButton.textContent = 'Remove';
+    removeButton.setAttribute('id', `row-rm-${id}`);
+    removeButton.addEventListener('click', () => removeRow(id));
     rowElement.appendChild(removeButton);
 
     rowElement.style.paddingBottom = '2px'
@@ -149,7 +149,7 @@ function createRowElement(id, transaction, title) {
 }
 
 function editRow(id) {
-    let record = records.get(id);
+    let record = records[id];
     const transaction = record.transaction;
     let editedTransaction = prompt(`Edit ${record.title? record.title : "transaction"}, current: ${transaction}:`, transaction);
     console.log(`edit ${id}, old: "${transaction}", new: "${editedTransaction}"`);
@@ -166,41 +166,62 @@ function editRow(id) {
     // Update the transaction in the Map
     record.transaction = editedTransaction;
 
-    // Update the displayed transaction in the DOM, including the row number
-    const element = document.getElementById(`row-item-${id}`);
-    const rowText = element.firstChild;
+    // Update the displayed transaction in the DOM
+    const rowText = document.getElementById(`row-text-${id}`);
     rowText.textContent = rowText.textContent.replace(transaction, editedTransaction);
 }
 
 function copyRow(id) {
     const transactionInput = document.getElementById('transactionInput');
-    transactionInput.value = records.get(id).transaction;;
+    transactionInput.value = records[id].transaction;;
 }
 
-function removeRow(rowElement, id) {
-    console.log(`delete ${id}, value: "${records.get(id).transaction}"`);
-    records.delete(id);
+function removeRow(id) {
+    console.log(`delete ${id}, value: "${records[id].transaction}"`);
+    records[id].enable = false;
 
     // Remove the row element from the DOM
-    rowElement.remove();
+    const rowText = document.getElementById(`row-text-${id}`);
+    rowText.classList.add('strikethrough');
 
-    // Correct the row numbers for the remaining rows
-    const allRowElements = document.querySelectorAll('.row-item');
-    let displayId = 1;
-    allRowElements.forEach((element) => {
-        const rowText = element.firstChild;
-        if (rowText.textContent.startsWith("Transaction ")) {
-            rowText.textContent = `Transaction ${displayId++}: ${rowText.textContent.slice(rowText.textContent.indexOf(':') + 2)}`;
-        }
-    });
+    const removeButton = document.getElementById(`row-rm-${id}`);
+    removeButton.classList.add('hidden');
 
+    let restoreButton = document.getElementById(`row-restore-${id}`);
+    if (restoreButton) {
+        restoreButton.classList.remove('hidden');
+    } else {
+        let restoreButton = document.createElement('button');
+        restoreButton.textContent = 'Restore';
+        restoreButton.setAttribute('id', `row-restore-${id}`);
+        restoreButton.addEventListener('click', () => restoreRow(id));
+        const row = document.getElementById(`row-item-${id}`);
+        row.appendChild(restoreButton);
+    }
+}
+
+function restoreRow(id) {
+    console.log(`restore ${id}, value: "${records[id].transaction}"`);
+    records[id].enable = true;
+
+    // Restore the row element from the DOM
+    const rowText = document.getElementById(`row-text-${id}`);
+    rowText.classList.remove('strikethrough');
+
+    const removeButton = document.getElementById(`row-rm-${id}`);
+    removeButton.classList.remove('hidden');
+
+    const restoreButton = document.getElementById(`row-restore-${id}`);
+    restoreButton.classList.add('hidden');
 }
 
 function calculate() {
     console.log("calculate()\n", records);
     let results = new Map();
-    for (const [, record] of records) {
-        processTransaction(record.transaction, results);
+    for (const record of records) {
+        if (record.enable === true) {
+            processTransaction(record.transaction, results);
+        }
     }
     printResult(results);
 }
@@ -276,8 +297,6 @@ function clearRecord() {
     rowHistoryContainer.innerHTML = "";
     const resultDiv = document.getElementById('rowsResultContainer');
     resultDiv.innerHTML = "";
-    rowId = 1;
-    displayId = 1;
     records.clear();
 }
 
