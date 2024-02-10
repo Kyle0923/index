@@ -57,7 +57,7 @@ function validate_input_impl(inputList) {
     let seen = new Set();
     for (let idx = 0; idx < inputList.length; idx++) {
         let record = inputList[idx];
-        const [is_valid, pariticipant, expr] = parse_participant(record);
+        const [is_valid, pariticipant, value] = parse_participant(record);
         if (!is_valid) {
             return [false, `Incorrect format: ${record}`];
         }
@@ -65,9 +65,9 @@ function validate_input_impl(inputList) {
             return [false, `repeated participant: ${pariticipant}`];
         }
         seen.add(pariticipant);
-        if (expr !== undefined)
+        if (value !== undefined)
         {
-            inputList[idx] = `${pariticipant}(${eval_expr(expr)})`;
+            inputList[idx] = `${pariticipant}(${value})`;
             numOfPaid++;
         }
     }
@@ -79,9 +79,10 @@ function validate_input_impl(inputList) {
     return [true, ""];
 }
 
+// returns [is_valid, pariticipant, value]
 function parse_participant(record) {
     record = record.trim();
-    const reg_user_paid = /\(([\d+-\\*]+)\)/;
+    const reg_user_paid = /\(([\d+-\\*\/\(\)]+)\)/;
     const reg_invalid_char = /[\(\)]/;
     if (!reg_invalid_char.test(record)) {
         return [true, record, undefined];
@@ -90,8 +91,15 @@ function parse_participant(record) {
     if (!matched) {
         return [false, undefined, undefined];
     }
-    const pariticipant = record.replace(matched[0], "");
-    return [true, pariticipant, matched[1]];
+    const pariticipant = record.replace(matched[0], ""); // remove expression
+    const expr = matched[1];
+    let value;
+    try {
+        value = eval_expr(expr);
+    } catch (e){
+        return [false, undefined, undefined];
+    }
+    return [true, pariticipant, value];
 }
 
 function eval_expr(str) {
